@@ -4,6 +4,10 @@ import UploadSection from "@/components/upload-section";
 import ProcessingSection from "@/components/processing-section";
 import EditorSection from "@/components/editor-section";
 import ExportModal from "@/components/export-modal";
+import MediaBrowser from "@/components/media-browser";
+import VideoPreviewArea from "@/components/video-preview-area";
+import TimelinePanel from "@/components/timeline-panel";
+import PropertiesPanel from "@/components/properties-panel";
 import { Scissors, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -53,14 +57,41 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Content with premium spacing */}
-      <main className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${
-        activeSection === 'upload' ? 'py-0' : 'py-8'
-      }`}>
-        {activeSection === 'upload' && <UploadSection />}
-        {activeSection === 'processing' && <ProcessingSection />}
-        {activeSection === 'editor' && <EditorSection />}
-      </main>
+      {/* Video Editor Layout */}
+      <div className="flex h-[calc(100vh-5rem)] overflow-hidden">
+        {/* Left Sidebar - Media Browser */}
+        <div className="w-80 gradient-glass border-r border-border/20 flex flex-col">
+          <MediaBrowser />
+        </div>
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col">
+          {/* Video Preview Area */}
+          <div className="flex-1">
+            {activeSection === 'upload' && (
+              <div className="h-full flex items-center justify-center p-6">
+                <UploadSection />
+              </div>
+            )}
+            {activeSection === 'processing' && (
+              <div className="h-full flex items-center justify-center p-6">
+                <ProcessingSection />
+              </div>
+            )}
+            {activeSection === 'editor' && <VideoPreviewArea />}
+          </div>
+
+          {/* Bottom Timeline Panel */}
+          <div className="h-80 gradient-glass border-t border-border/20">
+            <TimelinePanel />
+          </div>
+        </div>
+
+        {/* Right Sidebar - Properties & Effects */}
+        <div className="w-80 gradient-glass border-l border-border/20 flex flex-col">
+          <PropertiesPanel />
+        </div>
+      </div>
 
       <ExportModal />
     </div>

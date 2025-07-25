@@ -44,7 +44,7 @@ export const useVideoStore = create<VideoStore>((set, get) => ({
   currentTime: 0,
   isPlaying: false,
   duration: 0,
-  activeSection: 'upload',
+  activeSection: 'editor',
   showExportModal: false,
   
   // Actions

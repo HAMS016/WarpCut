@@ -6,7 +6,10 @@ WarpCut is a full-stack web application that provides AI-powered video editing c
 
 ## User Preferences
 
-Preferred communication style: Simple, everyday language.
+- Preferred communication style: Simple, everyday language
+- UI Design: Professional video editor layout similar to CapCut/Premiere Pro with familiar panels
+- Interface: Traditional editing app with left media browser, center preview, right properties, bottom timeline
+- User Experience: Simple enough for child-friendly use while maintaining professional appearance
 
 ## System Architecture
 
@@ -33,14 +36,14 @@ Preferred communication style: Simple, everyday language.
 ## Key Components
 
 ### Client-Side Components
-1. **Upload Section**: Drag-and-drop video upload interface with file validation
-2. **Processing Section**: Real-time progress tracking for AI operations
-3. **Editor Section**: Main editing interface with video player, transcript editor, and timeline
-4. **Video Player**: Custom video player with playback controls and time tracking
-5. **Word Playground**: Text-based editing interface for transcript manipulation
-6. **Timeline**: Visual waveform representation with cut segments
-7. **Control Panel**: Quick actions and export options
-8. **Style Studio**: Caption styling and formatting options
+1. **Media Browser**: Left sidebar with tabs for media files, projects, and assets with upload functionality
+2. **Video Preview Area**: Center panel with professional video player and enhanced controls
+3. **Timeline Panel**: Bottom panel with multi-track timeline (video, audio, subtitles) and editing tools
+4. **Properties Panel**: Right sidebar with video/audio effects, text tools, and AI enhancement features
+5. **Upload Section**: Drag-and-drop video upload interface with file validation
+6. **Processing Section**: Real-time progress tracking for AI operations
+7. **Advanced Caption Studio**: Comprehensive captioning system with multiple fonts and real-time preview
+8. **Professional Header**: Status indicators, branding, and account controls
 
 ### Server-Side Components
 1. **Project Management**: CRUD operations for video projects
