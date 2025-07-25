@@ -26,7 +26,8 @@ WarpCut is a full-stack web application that provides AI-powered video editing c
 - **Language**: TypeScript with ES modules
 - **Database**: PostgreSQL with Drizzle ORM for type-safe database operations
 - **Connection**: Neon Database serverless PostgreSQL
-- **Storage**: In-memory storage for development with database fallback for production
+- **Authentication**: Session-based authentication with bcrypt password hashing
+- **Session Storage**: PostgreSQL session store with express-session
 
 ### Video Processing Architecture
 - **Local Processing**: Client-side video processing using FFmpeg WebAssembly
@@ -52,10 +53,13 @@ WarpCut is a full-stack web application that provides AI-powered video editing c
 4. **Static Serving**: Development and production asset serving
 
 ### Database Schema
-- **Video Projects Table**: Stores project metadata, transcript data, cuts, and settings
-- **Transcript Segments**: Individual word/phrase data with timing and deletion flags
-- **Cut Segments**: Marked silence, filler words, or manual cuts
-- **Video Settings**: Caption styles, crop modes, and export preferences
+- **Users Table**: User authentication with username, email, hashed passwords, and timestamps
+- **Video Projects Table**: Stores project metadata, transcript data, cuts, settings, and user ownership
+- **Media Files Table**: User's uploaded media assets with metadata and file information
+- **Session Table**: PostgreSQL session storage for user authentication state
+- **Transcript Segments**: Individual word/phrase data with timing and deletion flags (JSON in projects)
+- **Cut Segments**: Marked silence, filler words, or manual cuts (JSON in projects)
+- **Video Settings**: Caption styles, crop modes, and export preferences (JSON in projects)
 
 ## Data Flow
 

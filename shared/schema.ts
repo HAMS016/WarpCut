@@ -1,10 +1,34 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, jsonb, timestamp, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, jsonb, timestamp, boolean, integer, serial, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
+import { relations } from "drizzle-orm";
 import { z } from "zod";
+
+// Users table
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").unique().notNull(),
+  email: text("email").unique(),
+  password: text("password").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Media Files table
+export const mediaFiles = pgTable("media_files", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  name: text("name").notNull(),
+  type: varchar("type", { length: 20 }).notNull(), // 'video', 'audio', 'image'
+  fileName: text("file_name").notNull(),
+  fileSize: integer("file_size").notNull(),
+  duration: real("duration"), // For video/audio files in seconds
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 export const videoProjects = pgTable("video_projects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: integer("user_id").references(() => users.id),
   name: text("name").notNull(),
   originalFileName: text("original_file_name").notNull(),
   duration: integer("duration").notNull(), // in seconds
@@ -19,6 +43,7 @@ export const videoProjects = pgTable("video_projects", {
   }),
   status: text("status").$type<"uploading" | "processing" | "ready" | "exporting">().notNull().default("uploading"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export interface TranscriptSegment {
@@ -44,10 +69,48 @@ export interface VideoSettings {
   captionPosition: "top" | "middle" | "bottom";
 }
 
-export const insertVideoProjectSchema = createInsertSchema(videoProjects).omit({
+// Relations
+export const usersRelations = relations(users, ({ many }) => ({
+  videoProjects: many(videoProjects),
+  mediaFiles: many(mediaFiles),
+}));
+
+export const videoProjectsRelations = relations(videoProjects, ({ one }) => ({
+  user: one(users, {
+    fields: [videoProjects.userId],
+    references: [users.id],
+  }),
+}));
+
+export const mediaFilesRelations = relations(mediaFiles, ({ one }) => ({
+  user: one(users, {
+    fields: [mediaFiles.userId],
+    references: [users.id],
+  }),
+}));
+
+// Schemas
+export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
 });
+
+export const insertMediaFileSchema = createInsertSchema(mediaFiles).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertVideoProjectSchema = createInsertSchema(videoProjects).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type User = typeof users.$inferSelect;
+
+export type InsertMediaFile = z.infer<typeof insertMediaFileSchema>;
+export type MediaFile = typeof mediaFiles.$inferSelect;
 
 export type InsertVideoProject = z.infer<typeof insertVideoProjectSchema>;
 export type VideoProject = typeof videoProjects.$inferSelect;

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useVideoStore } from "@/stores/video-store";
+import { useAuth } from "@/hooks/use-auth";
 import UploadSection from "@/components/upload-section";
 import ProcessingSection from "@/components/processing-section";
 import EditorSection from "@/components/editor-section";
@@ -8,11 +9,20 @@ import MediaBrowser from "@/components/media-browser";
 import VideoPreviewArea from "@/components/video-preview-area";
 import TimelinePanel from "@/components/timeline-panel";
 import PropertiesPanel from "@/components/properties-panel";
-import { Scissors, HelpCircle } from "lucide-react";
+import { Scissors, HelpCircle, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function Home() {
   const { activeSection } = useVideoStore();
+  const { user, logout } = useAuth();
 
   return (
     <div className="min-h-screen bg-background">
@@ -49,9 +59,27 @@ export default function Home() {
               <Button variant="ghost" size="sm" className="rounded-xl hover:bg-muted/50">
                 <HelpCircle className="w-5 h-5 text-muted-foreground" />
               </Button>
-              <Button className="gradient-primary text-white hover:shadow-primary transition-all duration-300 rounded-xl font-semibold px-6">
-                Sign In
-              </Button>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="rounded-xl hover:bg-muted/50 px-3">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center">
+                        <User className="w-4 h-4 text-primary" />
+                      </div>
+                      <span className="text-sm font-medium">{user?.username}</span>
+                    </div>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={logout} className="text-red-600 dark:text-red-400">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
