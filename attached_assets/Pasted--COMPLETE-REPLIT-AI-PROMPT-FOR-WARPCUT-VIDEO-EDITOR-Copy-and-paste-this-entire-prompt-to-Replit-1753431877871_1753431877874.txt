@@ -1,0 +1,580 @@
+# 🎬 COMPLETE REPLIT AI PROMPT FOR WARPCUT VIDEO EDITOR
+
+Copy and paste this entire prompt to Replit AI:
+
+---
+
+## PROJECT OVERVIEW
+Build a complete full-stack AI-powered video editing web application called "WarpCut" with the following specifications:
+
+**Core Purpose:** A browser-based video editor that reduces editing time from hours to minutes using AI automation, specifically designed to be so simple an 8-year-old can use it.
+
+**Key Features to Implement:**
+1. Auto-transcription with Whisper.wasm (English + Hindi/Hinglish support)
+2. Automatic silence and filler word removal
+3. One-click audio cleanup (noise removal + loudness normalization)
+4. Smart cropping for social media (16:9 → 9:16 TikTok, 1:1 Instagram)
+5. Text-based editing (delete words to cut video)
+6. Real-time captions with burn-in option
+7. Multi-format export (YouTube, TikTok, Instagram presets)
+8. Local processing (privacy-first, no uploads unless user chooses cloud speed)
+
+## TECHNICAL STACK
+
+**Frontend:**
+- React 18 + TypeScript + Vite
+- Tailwind CSS for styling
+- Zustand for state management
+- @ffmpeg/ffmpeg for video processing
+- whisper.wasm for speech-to-text
+- MediaPipe for face detection/tracking
+- wavesurfer.js for audio waveform visualization
+- File System Access API for local file handling
+
+**Backend (Minimal - using Flatpate/Supabase-like service):**
+- User authentication
+- Project metadata storage (JSON only, no video files)
+- Optional cloud transcription proxy
+- Usage analytics
+
+**Key Libraries to Install:**
+```bash
+npm create vite@latest warpcut --template react-ts
+cd warpcut
+npm install @ffmpeg/ffmpeg @ffmpeg/util
+npm install zustand
+npm install tailwindcss @tailwindcss/forms
+npm install wavesurfer.js
+npm install @mediapipe/selfie_segmentation
+npm install react-dropzone
+npm install lucide-react
+```
+
+## PROJECT STRUCTURE
+```
+src/
+├── components/
+│   ├── VideoUploader.tsx
+│   ├── Timeline.tsx
+│   ├── TranscriptEditor.tsx
+│   ├── ControlPanel.tsx
+│   ├── ExportModal.tsx
+│   └── ProgressBar.tsx
+├── lib/
+│   ├── ffmpeg.ts
+│   ├── whisper.ts
+│   ├── audioProcessor.ts
+│   ├── smartCropper.ts
+│   └── exportPresets.ts
+├── stores/
+│   └── videoStore.ts
+├── types/
+│   └── index.ts
+├── utils/
+│   └── helpers.ts
+└── App.tsx
+```
+
+## CORE IMPLEMENTATION
+
+### 1. Main App Component
+```tsx
+// src/App.tsx
+import React from 'react';
+import VideoUploader from './components/VideoUploader';
+import Timeline from './components/Timeline';
+import TranscriptEditor from './components/TranscriptEditor';
+import ControlPanel from './components/ControlPanel';
+import ExportModal from './components/ExportModal';
+import { useVideoStore } from './stores/videoStore';
+
+function App() {
+  const { videoFile, isProcessing } = useVideoStore();
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white">
+      <header className="bg-gray-800 p-4">
+        <h1 className="text-2xl font-bold text-purple-400">🎬 WarpCut</h1>
+        <p className="text-gray-300">AI Video Editor - Edit in Minutes, Not Hours</p>
+      </header>
+      
+      <main className="container mx-auto p-4">
+        {!videoFile ? (
+          <VideoUploader />
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <Timeline />
+              <TranscriptEditor />
+            </div>
+            <div>
+              <ControlPanel />
+            </div>
+          </div>
+        )}
+        
+        {isProcessing && <ProgressBar />}
+        <ExportModal />
+      </main>
+    </div>
+  );
+}
+
+export default App;
+```
+
+### 2. Video Store (Zustand)
+```tsx
+// src/stores/videoStore.ts
+import { create } from 'zustand';
+
+interface TranscriptSegment {
+  start: number;
+  end: number;
+  text: string;
+  confidence?: number;
+}
+
+interface CutSegment {
+  start: number;
+  end: number;
+  type: 'silence' | 'filler' | 'manual';
+}
+
+interface VideoStore {
+  // State
+  videoFile: File | null;
+  videoUrl: string | null;
+  duration: number;
+  transcript: TranscriptSegment[];
+  cuts: CutSegment[];
+  isProcessing: boolean;
+  currentTime: number;
+  
+  // Settings
+  showCaptions: boolean;
+  cropMode: '16:9' | '9:16' | '1:1';
+  denoiseEnabled: boolean;
+  
+  // Actions
+  setVideoFile: (file: File) => void;
+  setTranscript: (transcript: TranscriptSegment[]) => void;
+  addCut: (cut: CutSegment) => void;
+  removeCut: (index: number) => void;
+  toggleCaptions: () => void;
+  setCropMode: (mode: '16:9' | '9:16' | '1:1') => void;
+  setProcessing: (processing: boolean) => void;
+}
+
+export const useVideoStore = create<VideoStore>((set) => ({
+  videoFile: null,
+  videoUrl: null,
+  duration: 0,
+  transcript: [],
+  cuts: [],
+  isProcessing: false,
+  currentTime: 0,
+  showCaptions: false,
+  cropMode: '16:9',
+  denoiseEnabled: true,
+  
+  setVideoFile: (file) => set({ 
+    videoFile: file, 
+    videoUrl: URL.createObjectURL(file) 
+  }),
+  setTranscript: (transcript) => set({ transcript }),
+  addCut: (cut) => set((state) => ({ 
+    cuts: [...state.cuts, cut] 
+  })),
+  removeCut: (index) => set((state) => ({ 
+    cuts: state.cuts.filter((_, i) => i !== index) 
+  })),
+  toggleCaptions: () => set((state) => ({ 
+    showCaptions: !state.showCaptions 
+  })),
+  setCropMode: (mode) => set({ cropMode: mode }),
+  setProcessing: (processing) => set({ isProcessing: processing }),
+}));
+```
+
+### 3. FFmpeg Integration
+```tsx
+// src/lib/ffmpeg.ts
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
+
+class FFmpegManager {
+  private ffmpeg: FFmpeg;
+  private loaded = false;
+
+  constructor() {
+    this.ffmpeg = new FFmpeg();
+  }
+
+  async load() {
+    if (this.loaded) return;
+    
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+    this.ffmpeg.on('log', ({ message }) => console.log(message));
+    
+    await this.ffmpeg.load({
+      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+    });
+    
+    this.loaded = true;
+  }
+
+  async extractAudio(file: File): Promise<Blob> {
+    await this.load();
+    await this.ffmpeg.writeFile('input.mp4', await fetchFile(file));
+    
+    await this.ffmpeg.exec([
+      '-i', 'input.mp4',
+      '-vn', '-acodec', 'pcm_s16le',
+      '-ar', '16000', '-ac', '1',
+      'audio.wav'
+    ]);
+    
+    const data = await this.ffmpeg.readFile('audio.wav');
+    return new Blob([data], { type: 'audio/wav' });
+  }
+
+  async removeFillerWords(file: File, keepSegments: Array<{start: number, end: number}>): Promise<Blob> {
+    await this.load();
+    await this.ffmpeg.writeFile('input.mp4', await fetchFile(file));
+    
+    // Create filter for concatenating segments
+    const filterComplex = keepSegments.map((seg, i) => 
+      `[0:v]trim=start=${seg.start}:end=${seg.end},setpts=PTS-STARTPTS[v${i}]; ` +
+      `[0:a]atrim=start=${seg.start}:end=${seg.end},asetpts=PTS-STARTPTS[a${i}]`
+    ).join('; ') + '; ' +
+    keepSegments.map((_, i) => `[v${i}][a${i}]`).join('') + 
+    `concat=n=${keepSegments.length}:v=1:a=1[outv][outa]`;
+
+    await this.ffmpeg.exec([
+      '-i', 'input.mp4',
+      '-filter_complex', filterComplex,
+      '-map', '[outv]', '-map', '[outa]',
+      'output.mp4'
+    ]);
+    
+    const data = await this.ffmpeg.readFile('output.mp4');
+    return new Blob([data], { type: 'video/mp4' });
+  }
+
+  async smartCrop(file: File, aspectRatio: '9:16' | '1:1'): Promise<Blob> {
+    await this.load();
+    await this.ffmpeg.writeFile('input.mp4', await fetchFile(file));
+    
+    const cropFilters = {
+      '9:16': 'crop=ih*9/16:ih:(iw-ih*9/16)/2:0',
+      '1:1': 'crop=min(iw\\,ih):min(iw\\,ih):(iw-min(iw\\,ih))/2:(ih-min(iw\\,ih))/2'
+    };
+    
+    await this.ffmpeg.exec([
+      '-i', 'input.mp4',
+      '-vf', cropFilters[aspectRatio],
+      'cropped.mp4'
+    ]);
+    
+    const data = await this.ffmpeg.readFile('cropped.mp4');
+    return new Blob([data], { type: 'video/mp4' });
+  }
+}
+
+export const ffmpegManager = new FFmpegManager();
+```
+
+### 4. Whisper Integration
+```tsx
+// src/lib/whisper.ts
+// Note: This is a simplified implementation - you'll need to integrate actual whisper.wasm
+export class WhisperTranscriber {
+  private model: any = null;
+  
+  async loadModel() {
+    if (this.model) return;
+    
+    // Load Whisper WASM model (you'll need to implement this based on available whisper.wasm library)
+    console.log('Loading Whisper model...');
+    // this.model = await loadWhisperModel();
+  }
+  
+  async transcribe(audioBlob: Blob): Promise<Array<{start: number, end: number, text: string}>> {
+    await this.loadModel();
+    
+    // For now, return mock data - replace with actual Whisper integration
+    return [
+      { start: 0, end: 2.5, text: "Hello everyone" },
+      { start: 2.5, end: 4.0, text: "welcome to my video" },
+      { start: 4.0, end: 6.0, text: "today we're going to talk about" },
+      // Mock filler words
+      { start: 6.0, end: 6.5, text: "um" },
+      { start: 6.5, end: 8.0, text: "artificial intelligence" }
+    ];
+  }
+}
+
+export const whisperTranscriber = new WhisperTranscriber();
+```
+
+### 5. Video Uploader Component
+```tsx
+// src/components/VideoUploader.tsx
+import React, { useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { Upload, Film } from 'lucide-react';
+import { useVideoStore } from '../stores/videoStore';
+import { ffmpegManager } from '../lib/ffmpeg';
+import { whisperTranscriber } from '../lib/whisper';
+
+const VideoUploader: React.FC = () => {
+  const { setVideoFile, setTranscript, setProcessing } = useVideoStore();
+
+  const processVideo = async (file: File) => {
+    setProcessing(true);
+    try {
+      // Extract audio for transcription
+      const audioBlob = await ffmpegManager.extractAudio(file);
+      
+      // Transcribe audio
+      const transcript = await whisperTranscriber.transcribe(audioBlob);
+      setTranscript(transcript);
+      
+      setVideoFile(file);
+    } catch (error) {
+      console.error('Error processing video:', error);
+    }
+    setProcessing(false);
+  };
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (file) {
+      processVideo(file);
+    }
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'video/*': ['.mp4', '.mov', '.avi', '.mkv']
+    },
+    multiple: false
+  });
+
+  return (
+    <div className="flex items-center justify-center min-h-[400px]">
+      <div
+        {...getRootProps()}
+        className={`
+          border-2 border-dashed rounded-lg p-12 text-center cursor-pointer
+          transition-colors duration-200 w-full max-w-md
+          ${isDragActive 
+            ? 'border-purple-400 bg-purple-400/10' 
+            : 'border-gray-600 hover:border-purple-400'
+          }
+        `}
+      >
+        <input {...getInputProps()} />
+        <Film className="mx-auto mb-4 w-16 h-16 text-purple-400" />
+        <h3 className="text-xl font-semibold mb-2">Drop your video here</h3>
+        <p className="text-gray-400 mb-4">
+          Or click to select a file
+        </p>
+        <p className="text-sm text-gray-500">
+          Supports MP4, MOV, AVI, MKV
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export default VideoUploader;
+```
+
+### 6. Control Panel Component
+```tsx
+// src/components/ControlPanel.tsx
+import React from 'react';
+import { Scissors, Volume2, Crop, Download, Subtitles } from 'lucide-react';
+import { useVideoStore } from '../stores/videoStore';
+
+const ControlPanel: React.FC = () => {
+  const { 
+    showCaptions, 
+    cropMode, 
+    denoiseEnabled,
+    toggleCaptions,
+    setCropMode 
+  } = useVideoStore();
+
+  const handleAutoClean = () => {
+    // Implement auto-removal of silence and filler words
+    console.log('Auto-cleaning video...');
+  };
+
+  const handleExport = () => {
+    // Implement export functionality
+    console.log('Exporting video...');
+  };
+
+  return (
+    <div className="bg-gray-800 rounded-lg p-6 space-y-6">
+      <h3 className="text-lg font-semibold text-purple-400">AI Tools</h3>
+      
+      {/* Auto Clean */}
+      <button
+        onClick={handleAutoClean}
+        className="w-full bg-purple-600 hover:bg-purple-700 px-4 py-3 rounded-lg 
+                   flex items-center justify-center gap-2 transition-colors"
+      >
+        <Scissors className="w-5 h-5" />
+        Remove Silence & Filler Words
+      </button>
+
+      {/* Audio Controls */}
+      <div className="space-y-3">
+        <h4 className="font-medium">Audio</h4>
+        <label className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            checked={denoiseEnabled}
+            onChange={(e) => {/* handle denoise toggle */}}
+            className="rounded"
+          />
+          <Volume2 className="w-4 h-4" />
+          Remove Background Noise
+        </label>
+      </div>
+
+      {/* Captions */}
+      <div className="space-y-3">
+        <h4 className="font-medium">Captions</h4>
+        <label className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            checked={showCaptions}
+            onChange={toggleCaptions}
+            className="rounded"
+          />
+          <Subtitles className="w-4 h-4" />
+          Show Captions
+        </label>
+      </div>
+
+      {/* Crop Mode */}
+      <div className="space-y-3">
+        <h4 className="font-medium">Format</h4>
+        <div className="grid grid-cols-3 gap-2">
+          {['16:9', '9:16', '1:1'].map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setCropMode(mode as any)}
+              className={`
+                px-3 py-2 rounded text-sm transition-colors
+                ${cropMode === mode 
+                  ? 'bg-purple-600 text-white' 
+                  : 'bg-gray-700 hover:bg-gray-600'
+                }
+              `}
+            >
+              {mode === '16:9' ? 'YouTube' : mode === '9:16' ? 'TikTok' : 'Instagram'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Export */}
+      <button
+        onClick={handleExport}
+        className="w-full bg-green-600 hover:bg-green-700 px-4 py-3 rounded-lg 
+                   flex items-center justify-center gap-2 transition-colors"
+      >
+        <Download className="w-5 h-5" />
+        Export Video
+      </button>
+    </div>
+  );
+};
+
+export default ControlPanel;
+```
+
+## IMPLEMENTATION STEPS
+
+### Step 1: Project Setup
+1. Create new Replit project with Vite + React + TypeScript
+2. Install all required dependencies
+3. Set up Tailwind CSS configuration
+4. Create the basic file structure
+
+### Step 2: Core Video Handling
+1. Implement VideoUploader component with drag-and-drop
+2. Set up FFmpeg.wasm integration
+3. Create basic video preview functionality
+4. Implement File System Access API for local file handling
+
+### Step 3: AI Features
+1. Integrate Whisper.wasm for transcription
+2. Implement silence detection using FFmpeg
+3. Create filler word detection algorithm
+4. Build auto-cut functionality
+
+### Step 4: Timeline & Editor
+1. Create interactive timeline with wavesurfer.js
+2. Implement text-based editing interface
+3. Sync transcript with video timeline
+4. Add cut preview functionality
+
+### Step 5: Export System
+1. Implement multi-format export presets
+2. Add progress tracking for exports
+3. Create File System Access API save dialog
+4. Optimize export quality and file sizes
+
+### Step 6: UI Polish
+1. Add loading states and progress bars
+2. Implement responsive design
+3. Add keyboard shortcuts
+4. Create onboarding tour
+
+### Step 7: PWA & Offline
+1. Set up service worker for offline functionality
+2. Cache WASM binaries and models
+3. Implement PWA manifest
+4. Add install prompt
+
+## ADDITIONAL REQUIREMENTS
+
+1. **Performance Optimization:**
+   - Use Web Workers for heavy processing
+   - Implement lazy loading for WASM modules
+   - Add memory management for large files
+
+2. **Error Handling:**
+   - Comprehensive try-catch blocks
+   - User-friendly error messages
+   - Graceful fallbacks for unsupported browsers
+
+3. **Accessibility:**
+   - WCAG 2.1 AA compliance
+   - Keyboard navigation
+   - Screen reader support
+
+4. **Testing:**
+   - Unit tests for core functions
+   - Integration tests for video processing
+   - E2E tests for complete workflows
+
+## DEPLOYMENT NOTES
+
+1. Host static files on Replit
+2. Configure proper CORS headers for WASM files
+3. Set up CDN for large model files
+4. Implement proper caching strategies
+
+Build this as a Progressive Web App that works offline-first, with all processing happening in the browser for maximum privacy and speed. The app should be so intuitive that an 8-year-old can use it successfully.
+
+**Start with the basic video upload and transcription, then gradually add the AI editing features. Focus on making each feature work perfectly before moving to the next one.**
