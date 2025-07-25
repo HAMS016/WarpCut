@@ -25,7 +25,17 @@ export class MemStorage implements IStorage {
     const project: VideoProject = { 
       ...insertProject, 
       id,
-      createdAt: new Date()
+      createdAt: new Date(),
+      status: (insertProject.status as "uploading" | "processing" | "ready" | "exporting") || "uploading",
+      transcript: (insertProject.transcript as any) || [],
+      cuts: (insertProject.cuts as any) || [],
+      settings: (insertProject.settings as any) || {
+        showCaptions: false,
+        cropMode: "16:9" as const,
+        captionStyle: "youtube" as const,
+        fontSize: 24,
+        captionPosition: "bottom" as const
+      }
     };
     this.videoProjects.set(id, project);
     return project;

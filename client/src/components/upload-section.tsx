@@ -1,6 +1,6 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { CloudUpload, Film, Play } from "lucide-react";
+import { CloudUpload, Film, Play, Sparkles, Zap, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useVideoStore } from "@/stores/video-store";
@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 export default function UploadSection() {
   const { setVideoFile, setActiveSection, setProcessingState, setCurrentProject } = useVideoStore();
   const { toast } = useToast();
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const createProjectMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -71,15 +72,37 @@ export default function UploadSection() {
   };
 
   const processVideo = async (file: File) => {
+    // Simulate upload progress
+    setUploadProgress(0);
+    const uploadInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(uploadInterval);
+          return 100;
+        }
+        return prev + 10;
+      });
+    }, 100);
+
     setVideoFile(file);
     
-    // Create project in database
-    createProjectMutation.mutate({
-      name: file.name.replace(/\.[^/.]+$/, ""),
-      originalFileName: file.name,
-      duration: 347, // Mock duration in seconds
-      status: "processing"
-    });
+    // Get actual video duration
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    
+    video.onloadedmetadata = () => {
+      const duration = Math.floor(video.duration) || 347; // fallback to mock duration
+      
+      // Create project in database
+      createProjectMutation.mutate({
+        name: file.name.replace(/\.[^/.]+$/, ""),
+        originalFileName: file.name,
+        duration: duration,
+        status: "processing"
+      });
+    };
+    
+    video.src = URL.createObjectURL(file);
   };
 
   const loadSampleVideo = (type: string) => {
@@ -105,90 +128,108 @@ export default function UploadSection() {
   });
 
   return (
-    <div className="animate-fade-in">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-          Edit Videos in <span className="text-primary">Minutes</span>, Not Hours
-        </h2>
-        <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-          AI-powered video editing so simple, an 8-year-old can use it. Upload, click magic, and export.
+    <div className="animate-fade-in min-h-screen flex flex-col justify-center">
+      {/* Hero Section */}
+      <div className="text-center mb-12">
+        <div className="flex items-center justify-center mb-6">
+          <div className="relative">
+            <div className="w-16 h-16 gradient-primary rounded-2xl flex items-center justify-center shadow-primary animate-glow">
+              <Sparkles className="text-white w-8 h-8" />
+            </div>
+            <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center">
+              <Wand2 className="w-3 h-3 text-black" />
+            </div>
+          </div>
+        </div>
+        
+        <h1 className="text-5xl sm:text-6xl font-bold mb-6">
+          <span className="text-gradient">AI Video Magic</span>
+          <br />
+          <span className="text-foreground">In Seconds</span>
+        </h1>
+        <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+          Professional video editing powered by artificial intelligence. So simple, 
+          <span className="text-primary font-semibold"> even an 8-year-old</span> can create stunning videos.
         </p>
       </div>
 
-      {/* Magic Upload Zone */}
-      <Card className="mb-8 border-2 border-dashed hover:border-primary transition-all duration-300 hover:shadow-xl">
-        <CardContent 
-          {...getRootProps()} 
-          className={`p-12 text-center cursor-pointer transition-colors ${
-            isDragActive ? 'bg-primary/10' : 'hover:bg-muted/50'
-          }`}
-        >
-          <input {...getInputProps()} />
-          <div className="max-w-md mx-auto">
-            <div className="w-20 h-20 bg-gradient-to-br from-primary/20 to-primary/30 rounded-2xl flex items-center justify-center mx-auto mb-6 animate-bounce-slow">
-              <CloudUpload className="text-primary w-8 h-8" />
+      {/* Premium Upload Zone */}
+      <div className="max-w-4xl mx-auto w-full">
+        <Card className="gradient-glass border-0 shadow-xl-custom hover:shadow-primary transition-all duration-500 animate-scale-in">
+          <CardContent 
+            {...getRootProps()} 
+            className={`p-16 text-center cursor-pointer transition-all duration-300 ${
+              isDragActive ? 'bg-primary/5 scale-105' : 'hover:bg-muted/20'
+            }`}
+          >
+            <input {...getInputProps()} />
+            
+            <div className="max-w-lg mx-auto">
+              {/* Animated Upload Icon */}
+              <div className="relative mb-8">
+                <div className={`w-24 h-24 gradient-primary rounded-3xl flex items-center justify-center mx-auto shadow-primary transition-all duration-300 ${
+                  isDragActive ? 'scale-110 animate-pulse' : 'animate-bounce-slow'
+                }`}>
+                  <CloudUpload className="text-white w-10 h-10" />
+                </div>
+                <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
+                  <Zap className="w-4 h-4 text-white" />
+                </div>
+              </div>
+
+              <h2 className="text-3xl font-bold text-foreground mb-4">
+                {isDragActive ? 'Drop it like it\'s hot!' : 'Upload Your Video'}
+              </h2>
+              <p className="text-lg text-muted-foreground mb-8">
+                Drag & drop your video file here, or click to browse
+              </p>
+              
+              <Button size="lg" className="gradient-primary text-white font-semibold px-12 py-6 text-lg rounded-2xl shadow-primary hover:shadow-xl transition-all duration-300 hover:scale-105">
+                <Film className="w-6 h-6 mr-3" />
+                Choose Video File
+              </Button>
+              
+              <div className="mt-8 flex items-center justify-center space-x-8 text-sm text-muted-foreground">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span>MP4, MOV, AVI</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span>Up to 500MB</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                  <span>HD Quality</span>
+                </div>
+              </div>
             </div>
-            <h3 className="text-2xl font-bold text-foreground mb-3">Drop Your Video Here</h3>
-            <p className="text-muted-foreground mb-6">Or click to browse your files</p>
-            <Button size="lg" className="text-lg px-8 py-4">
-              <CloudUpload className="w-5 h-5 mr-2" />
-              Choose Video
-            </Button>
-            <p className="text-sm text-muted-foreground mt-4">
-              Supports MP4, MOV, AVI, MKV • Max 500MB
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Demo Section */}
+      <div className="mt-16 text-center">
+        <Card className="gradient-secondary border-0 shadow-glass max-w-2xl mx-auto">
+          <CardContent className="p-8">
+            <h3 className="text-2xl font-semibold text-foreground mb-4">
+              Try with a Sample Video
+            </h3>
+            <p className="text-muted-foreground mb-6">
+              Want to see the magic in action? Load a demo video and experience the AI editing power.
             </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Sample Videos */}
-      <Card>
-        <CardContent className="p-8">
-          <h3 className="text-xl font-semibold text-foreground mb-6 text-center">
-            Try with Sample Videos
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Tech Tutorial Sample */}
-            <Card className="hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => loadSampleVideo('tech')}>
-              <CardContent className="p-6">
-                <div className="aspect-video bg-muted rounded-lg mb-4 flex items-center justify-center">
-                  <Play className="text-muted-foreground w-8 h-8" />
-                </div>
-                <h4 className="font-semibold text-foreground mb-2">Tech Tutorial</h4>
-                <p className="text-sm text-muted-foreground">
-                  5 min coding walkthrough with silence removal
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Interview Sample */}
-            <Card className="hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => loadSampleVideo('interview')}>
-              <CardContent className="p-6">
-                <div className="aspect-video bg-muted rounded-lg mb-4 flex items-center justify-center">
-                  <Play className="text-muted-foreground w-8 h-8" />
-                </div>
-                <h4 className="font-semibold text-foreground mb-2">Interview</h4>
-                <p className="text-sm text-muted-foreground">
-                  10 min conversation with filler word cleanup
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Presentation Sample */}
-            <Card className="hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => loadSampleVideo('presentation')}>
-              <CardContent className="p-6">
-                <div className="aspect-video bg-muted rounded-lg mb-4 flex items-center justify-center">
-                  <Play className="text-muted-foreground w-8 h-8" />
-                </div>
-                <h4 className="font-semibold text-foreground mb-2">Presentation</h4>
-                <p className="text-sm text-muted-foreground">
-                  15 min demo with auto-captions
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card>
+            <Button 
+              onClick={() => loadSampleVideo('demo')} 
+              variant="outline" 
+              size="lg"
+              className="gradient-glass border-primary/30 text-primary hover:bg-primary/10 hover:border-primary transition-all duration-300"
+            >
+              <Play className="w-5 h-5 mr-2" />
+              Load Demo Video
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
